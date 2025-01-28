@@ -1,0 +1,47 @@
+from setuptools import setup
+
+setup(
+    name='utopia_pipeline_tools',
+    version='0.3.28',    
+    description='A Python package for managing data in the ifcbUTOPIA project',
+    url='https://github.com/ifcb-utopia/data_pipeline',
+    author='Claire Berschauer',
+    author_email='ckb22@uw.edu',
+    license='GPLv3',  
+    install_requires=['numpy', 
+                      'jupyter',
+                      'ipykernel',
+                      'numpy>=1.2',
+                      'pandas>=1.4',
+                      'scikit-learn>=1.2',
+                      'matplotlib>=3.5',
+                      'imageio',
+                      'tensorflow==2.13.1',
+                      'pip',
+                      'tqdm',
+                      'pylint',
+                      'modAL==0.49.2437',
+                      'azure-storage-blob>=12.19.1',
+                      'azure-mgmt-compute>=30.5.0',
+                      'azure-identity',
+                      'azure-mgmt-storage>=21.1.0',
+                      'azure_core>=1.29.1',
+                      'opencv-python',
+                      'pymssql>=2.2',
+                      'plotly',
+                      'umap-learn',
+                      'marimo>=0.10.17',
+                      'seaborn',
+                      'IPython',
+                      'streamlit>=1.29',
+                      'keras'                 
+                      ],  ## all the dependencies
+
+    classifiers=[
+        'Development Status :: 1 - Planning',
+        'Topic :: Scientific/Engineering :: Oceanography',
+        'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',  
+        'Operating System :: Microsoft :: Windows :: Windows 11',
+        'Programming Language :: Python :: 3.10',
+    ],  
+)
