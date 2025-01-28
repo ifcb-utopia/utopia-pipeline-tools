@@ -3,6 +3,11 @@
 
 ## Package Updates
 
+### Version 0.3.29
+
+- Updated README
+- Uploaded to git repository
+
 ### Version 0.3.28
 
 - Updated list_files_in_blob() in azure blob tools to return a DataFrame if selection type is 'all'. 

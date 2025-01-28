@@ -6,7 +6,7 @@ import os
 import json
 
 # a bit of metadata
-__version__ = '0.3.28'
+__version__ = '0.3.29'
 __author__ = 'Claire Berschauer'
 __credits__ = 'Applied Physics Laboratory - UW'
 
