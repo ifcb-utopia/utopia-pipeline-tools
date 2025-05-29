@@ -20,7 +20,7 @@ label_dict = {'Chloro': 0,
               'Eugleno': 6,
               'Unidentified_Living': 7,
               'Prymnesio': 8,
-              'Inoperative': 9
+              'Inoperable': 9
              }
 
 label_list = list(label_dict.keys())
@@ -34,7 +34,7 @@ aphiaID_dict = {0: ['Chlorophyta', 801],
                 6: ['Euglenoidea', 582177],
                 7: ['Biota', 1],
                 8: ['Prymnesiophyceae', 115057],
-                9: ['Inoperative', -9999]
+                9: ['Inoperable', -9999]
                 }
 
 calibration_ratio = 2.7488  # pixels/um (feature extraction v4 value)

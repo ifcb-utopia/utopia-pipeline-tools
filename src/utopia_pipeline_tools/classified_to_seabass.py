@@ -34,6 +34,9 @@ import os
 import utopia_pipeline_tools as upt
 from utopia_pipeline_tools.azure_blob_tools import list_files_in_blob
 from utopia_pipeline_tools.ifcb_data_tools import retrieve_filepaths_from_local
+import marimo as mo
+from pathlib import Path
+from urllib.parse import urljoin
 
 class MakeSeaBASS():
     def __init__(self, metadata_filepath, class_filepath, experiment, cruise, 
@@ -119,11 +122,12 @@ class MakeSeaBASS():
         # Initializing class variables
         self.sample_filename = None
         self.sample_df = None 
+        self.blob_location_url_prefix = None
 
         if location == 'blob':
             self.blob = True
 
-            blob_location_url_prefix = f'''https://{config_info[
+            self.blob_location_url_prefix = f'''https://{config_info[
                  'blob_storage_name']}.blob.core.windows.net/{container}/'''
 
             if sample_filepath is None:
@@ -196,11 +200,11 @@ class MakeSeaBASS():
                               'cruise': cruise,
                               'documents': docs_formatted,
                               'calibration_file': 'no_cal_files',
-                              'data_type': 'taxonomy',
+                              'data_type': self.metadata_df['Type'][0] if 'Type' in self.metadata_df.columns else 'unknown',
                               'data_status': data_status.lower(),
                               'water_depth': 'NA',
                               'pixel_per_um': 2.7488,
-                              'blob_location': blob_location_url_prefix,
+                              'blob_location': self.blob_location_url_prefix,
                               'associated_archives': tgz,
                               'associated_archive_types': 'planktonic',
                               'length_representation_instrument_varname': 
@@ -234,9 +238,18 @@ class MakeSeaBASS():
             sfn = self.sample_filenames['filepath'][n]
             
             # build full filepath name
-            sample_df_filepath = f"{self.header_values['blob_location']}{sfn}"
-            # load csv
-            sample_df = pd.read_csv(sample_df_filepath)
+            if self.blob_location_url_prefix:
+                normalized_prefix = self.blob_location_url_prefix.rstrip('/')
+                normalized_sfn = sfn.lstrip('/')
+                sample_df_filepath = urljoin(normalized_prefix + '/', normalized_sfn)
+            else:
+                sample_df_filepath = sfn
+            
+            # load the sample dataframe
+            try:
+                sample_df = pd.read_csv(sample_df_filepath)
+            except FileNotFoundError:
+                raise FileNotFoundError(f"File not found: {sample_df_filepath}")
         else:
             # using the specified sample csv
             sample_df_filepath = self.sample_filename
@@ -263,6 +276,17 @@ class MakeSeaBASS():
             sample_df_filepath = f"{self.header_values['blob_location']}{fp}"
             # load sample metadata csv file
             sample_df = pd.read_csv(sample_df_filepath)
+            
+            # Extract flag
+            sample_ID = self.extract_sample_ID(sample_df_filepath)
+            _, _, _, _, _, _, _, _, flag, _, _ = self.extract_metadata_for_header(
+                sample_ID, sample_df, self.stations_bool, self.flags_bool)
+    
+            # Skip file creation if flag is not "1"
+            if str(flag) not in ["1", "2048"]:
+                print(f"INFO: Skipping file creation for sample with flag: {flag}")
+                continue  # Skip to the next sample
+
             # make the SeaBASS string
             sb_string = self.write_seabass(sample_df_filepath, sample_df)
             # save as a .sb file in the folder
@@ -288,7 +312,7 @@ class MakeSeaBASS():
         """
         # choose trigger condition note based on indicated mode
         if self.header_values['ifcb_trigger_mode'] == 'both':
-            trigger_note = '''chlorophyll fluorescence (PMTB) OR side scattering  
+            trigger_note = '''chlorophyll fluorescence (PMTB) AND side scattering  
 ! (PMTA)  '''
         elif self.header_values['ifcb_trigger_mode'] == 'chlorophyll':
             trigger_note = 'chlorophyll fluorescence (PMTB)'
@@ -321,9 +345,8 @@ class MakeSeaBASS():
                                 }_{data_type}_IFCB_plankton_and_particles_{
                                     sample_ID}.sb"""
 
-        # construct header
-        header = f"""/begin_header  
-/   
+        # construct header (REMOVED: /associatedMedia_source={self.header_values['blob_location']} )
+        header = f"""/begin_header   
 /investigators={self.header_values['investigators']}  
 /affiliations={self.header_values['affiliations']}  
 /contact={self.header_values['emails']}  
@@ -352,8 +375,7 @@ class MakeSeaBASS():
 /measurement_depth={depth}  
 /volume_sampled_ml={volume_sampled}  
 /volume_imaged_ml={volume_imaged}  
-/pixel_per_um={self.header_values['pixel_per_um']}  
-/associatedMedia_source={self.header_values['blob_location']}  
+/pixel_per_um={self.header_values['pixel_per_um']}   
 /associated_archives={self.header_values['associated_archives']}  
 /associated_archive_types={self.header_values['associated_archive_types']}  
 /length_representation_instrument_varname={self.header_values[
@@ -384,8 +406,8 @@ class MakeSeaBASS():
 ! Data pipeline and analysis resources in data-pipeline repository.  
 !  
 ! Files include ML automated taxonomic classification. Any image categorized  
-! as 'Inoperative' is either non-living or unclassifiable due to technical     
-! issues, so these images have no associated AphiaID.  
+! as 'Inoperable' is either non-living or unclassifiable due to technical     
+! issues (e.g., bad focus), so these images have no associated AphiaID.  
 !  
 ! Additional notes: {additional_notes}  
 !  
@@ -513,8 +535,7 @@ class MakeSeaBASS():
             in the metadata file. 
 
         Returns:
-        :param data_type: (DEPRECATED: Now using 'taxonomy' for all samples) 
-            Describes how the data was taken, i.e. in-line.  
+        :param data_type: Describes how the data was taken, i.e. flow_thru, bottle, etc.  
         :type data_type: str
         :param lat: Latitude reading at time of sample. 
         :type lat: float
@@ -546,12 +567,11 @@ class MakeSeaBASS():
         row_index = [x for x in self.metadata_df.index if sample_ID 
                      == self.metadata_df[bin_col_name].iloc[x]][0]
         
-        # get data type from the sample df -- deprecated variable!
-        # now defined in header for all samples
+        # get data type from the sample df 
         try:
             data_type = self.metadata_df['sample_type'].iloc[row_index]  
         except:
-            data_type = 'in-line'
+            data_type = 'flow_thru'
 
         # get latitude and longitude from sample df or metadata df
         try:
@@ -731,15 +751,32 @@ class MakeSeaBASS():
         for x in np.arange(len(sample_df.index)):
             # retrieve predicted label (int)
             key = class_subset['pred_label'][x]
-            # build the full blob storage filepath
-            filepath = f'''{self.header_values['blob_location']}{
-                class_subset['filepath'][x]}'''
+            # build the full blob storage filepath         
+            filename = class_subset['filepath'][x]
+            blob_location = self.header_values.get('blob_location')
+            if self.blob:
+                if not blob_location:
+                    raise ValueError("blob_location is not set in blob mode.")
+                filepath = str(Path(blob_location) / filename)
+            else:
+                 filepath = str(Path(filename))
             # find the names associated with the key value
-            category = upt.label_list[key]  # our label names
-            sci_name = upt.aphiaID_dict[key][0]  # scientific name from 
+            category = upt.label_list[key]  # our label names - non-standard found in 'namespace_UWPT_nonconforming_roi_v1.yml'
+            if upt.aphiaID_dict[key][0] == 'Biota':
+                sci_name = 'UWPT:Unidentified_Living'
+            elif upt.aphiaID_dict[key][0] == 'Inoperable':
+                sci_name = 'UWPT:Inoperable'  
+            else:
+                sci_name = upt.aphiaID_dict[key][0]  # scientific name from 
                                                     # WoRMS
-            nameID = f'''urn:lsid:marinespecies.org:taxname:{
-                upt.aphiaID_dict[key][1]}'''  # taxonomic identifier
+            # build the WoRMS nameID
+            if upt.aphiaID_dict[key][1] == -9999:
+                nameID = f'-9999'     
+            else:
+                nameID = (
+                    f'''urn:lsid:marinespecies.org:taxname:{upt.aphiaID_dict[key][1]}'''  # taxonomic identifier
+                )
+
             pred_score = class_subset[str(key)][x]  # probability score
 
             # size information (calibrated from pixels to um)

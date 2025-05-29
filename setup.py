@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='utopia_pipeline_tools',
-    version='0.3.29',    
+    version='0.3.30',    
     description='A Python package for managing data in the ifcbUTOPIA project',
     url='https://github.com/ifcb-utopia/data_pipeline',
     author='Claire Berschauer',

@@ -27,23 +27,15 @@ def retrieve_filepaths_from_local(folder_location):
 
     # loop over sub-folder locations to retrieve all images
     for folder in sub_folders:
-        sub_folder_loc = folder_location + '\\' + folder
-        if 'C:\\\\' in sub_folder_loc: 
-            # Encountered an error when using with marimo notebooks where the 
-            # filepaths duplicated the backslashes. This condition has been
-            # added to fix that. 
-            sub_folder_loc = re.sub(r'\\+', r'\\', sub_folder_loc)
-        
+        sub_folder_loc = os.path.join(folder_location, folder)
+
+        if not os.path.isdir(sub_folder_loc):
+            continue
+
         images = os.listdir(sub_folder_loc)
 
-        # loop over all images in each sub-folder and append the full filepaths 
-        # to the list
         for image in images:
-            im_filepath = folder_location + '\\' + folder + '\\' + image
-            if 'C:\\\\' in im_filepath: 
-            # Included again to fix duplicate backslashes 
-                im_filepath = re.sub(r'\\+', r'\\', im_filepath)
+            im_filepath = os.path.join(sub_folder_loc, image)
+            image_list.append(im_filepath)
 
-                image_list.append(im_filepath)
-    
     return image_list
